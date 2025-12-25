@@ -8,10 +8,11 @@ import { renderScatter } from "./charts/scatterChart.js";
 import { renderHistogram } from "./charts/brushChart.js";
 import { renderMeans } from "./charts/meansChart.js";
 import { renderRank } from "./charts/rankChart.js";
+import { formatCurrency } from "./utils.js";
 
 // 2. Fungsi Utama: Render Ulang Semua Grafik
 function updateAllCharts() {
-    // a. Filter Data berdasarkan Brush Histogram (jika ada)
+    // 1. Filter Data berdasarkan Brush Histogram
     let activeData = state.allData;
     
     if (state.sumRange) {
@@ -19,19 +20,39 @@ function updateAllCharts() {
         activeData = activeData.filter(d => +d.sum >= min && +d.sum <= max);
     }
 
-    // Simpan data filtered ke state agar grafik lain bisa akses
     setState("filteredData", activeData);
 
-    // b. Panggil Render Fungsi masing-masing grafik
+    // 2. Render Ulang Semua Grafik
     renderScatter();
     renderMeans();
     renderRank();
     
-    // Update Info Teks (Opsional: Jumlah wilayah yang tampil)
-    d3.select("#story-insight").html(`
-    Showing <strong>${activeData.length}</strong> areas 
-    ${state.sumRange ? `within range £${state.sumRange[0].toFixed(2)} - £${state.sumRange[1].toFixed(2)}` : ""}
-    `);
+    // --- 3. LOGIKA AUTO INSIGHT DINAMIS (UPDATE DI SINI) ---
+    const insightContainer = d3.select("#story-insight");
+    
+    if (activeData.length === 0) {
+        insightContainer.html("No areas match the selected filter. Try adjusting the brush.");
+        return;
+    }
+
+    // Ambil metrik yang sedang aktif di dropdown
+    const currentMetric = state.metric;
+    
+    // Hitung Rata-rata
+    const avgValue = d3.mean(activeData, d => +d[currentMetric]);
+
+    // Cari Wilayah dengan Nilai Tertinggi (Top Performer)
+    const topArea = [...activeData].sort((a, b) => b[currentMetric] - a[currentMetric])[0];
+
+    // Susun Kalimat Insight secara otomatis
+    const text = `
+        Currently showing <strong>${activeData.length.toLocaleString()}</strong> areas. 
+        The average benefit for the selected metric is <strong>${formatCurrency(avgValue)}</strong>. 
+        <br><br>
+        🌟 <strong>${topArea.small_area}</strong> stands out as the top performer in this group.
+    `;
+
+    insightContainer.html(text);
 }
 
 // 3. Inisialisasi (Load Data & Setup Event Listener)
